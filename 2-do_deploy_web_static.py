@@ -1,40 +1,27 @@
 #!/usr/bin/python3
-""" Function that compress a folder """
-from datetime import datetime
-from fabric.api import *
-import shlex
-import os
-
-
-env.hosts = ['44.200.40.98', '100.26.164.91']
-env.user = "ubuntu"
+''' a fabric script that distributes an archive to a server '''
+from fabric.api import put, sudo, env, run
+from os.path import exists
+env.hosts = ['ubuntu@54.85.93.141', 'ubuntu@34.201.165.179']
 
 
 def do_deploy(archive_path):
-    """ Deploys """
-    if not os.path.exists(archive_path):
+    ''' function that uploads to server and uncompress the archive file '''
+    if not exists(archive_path):
         return False
+
     try:
-        name = archive_path.replace('/', ' ')
-        name = shlex.split(name)
-        name = name[-1]
-
-        wname = name.replace('.', ' ')
-        wname = shlex.split(wname)
-        wname = wname[0]
-
-        releases_path = "/data/web_static/releases/{}/".format(wname)
-        tmp_path = "/tmp/{}".format(name)
-
+        filename = archive_path.rsplit('/', 1)[-1]
+        filenamextn = filename.rsplit('.', 1)[0]
+        filepath = '/data/web_static/releases/{}/'.format(filenamextn)
         put(archive_path, "/tmp/")
-        run("mkdir -p {}".format(releases_path))
-        run("tar -xzf {} -C {}".format(tmp_path, releases_path))
-        run("rm {}".format(tmp_path))
-        run("mv {}web_static/* {}".format(releases_path, releases_path))
-        run("rm -rf {}web_static".format(releases_path))
+        run("mkdir -p {}".format(filepath))
+        run("tar -xzf /tmp/{} -C {}".format(filename, filepath))
+        run("rm /tmp/{}".format(filename))
+        run("mv {}web_static/* {}".format(filepath, filepath))
+        run("rm -rf {}web_static".format(filepath))
         run("rm -rf /data/web_static/current")
-        run("ln -s {} /data/web_static/current".format(releases_path))
-        print("New version deployed!")
+        run("ln -s {} /data/web_static/current".format(filepath))
         return True
     except:
         return False
