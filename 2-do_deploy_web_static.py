@@ -1,47 +1,40 @@
 #!/usr/bin/python3
-'''Module distributes an archive to your web servers
-using the function do_deploy'''
-
+""" Function that compress a folder """
 from datetime import datetime
-from fabric.api import local, env, put, sudo
+from fabric.api import *
+import shlex
 import os
 
 
-env.user = 'ubuntu'
-env.hosts = ['34.75.36.193', '3.94.194.152']
+env.hosts = ['44.200.40.98', '100.26.164.91']
+env.user = "ubuntu"
 
 
 def do_deploy(archive_path):
-    '''Method to deploy archive'''
-
-    if os.path.exists(archive_path) is False:
+    """ Deploys """
+    if not os.path.exists(archive_path):
         return False
-
-    arch = archive_path.split("/", 2)[1]
-    new_file = '/data/web_static/releases/{}'.format(
-        arch.split(".", 1)[0])
-    tmp_file = '/tmp/{}'.format(arch)
-    cur = '/data/web_static/current'
-
-    '''
-    archive_path = versions/web_static_20210415160740.tgz
-    arch = web_static_20210415160740.tgz
-    new_file = /data/web_static/releases/web_static_20210415160740
-    tmp_file = /tmp/web_static_20210415160740.tgz
-    cur = /data/web_static/current
-    '''
-
     try:
-        put(archive_path, '/tmp/')
-        sudo("mkdir -p {}/".format(new_file))
-        sudo("tar -xzf {} -C {}/".format(tmp_file, new_file))
-        sudo("rm {}".format(tmp_file))
-        sudo("mv {}/web_static/* {}".format(new_file, new_file))
-        sudo("rm -rf {}/web_static".format(new_file))
-        sudo("rm -rf {}".format(cur))
-        sudo("ln -s {}/ {}".format(new_file, cur))
-        print("YAY! LOVE YOU!")
-        return(True)
+        name = archive_path.replace('/', ' ')
+        name = shlex.split(name)
+        name = name[-1]
+
+        wname = name.replace('.', ' ')
+        wname = shlex.split(wname)
+        wname = wname[0]
+
+        releases_path = "/data/web_static/releases/{}/".format(wname)
+        tmp_path = "/tmp/{}".format(name)
+
+        put(archive_path, "/tmp/")
+        run("mkdir -p {}".format(releases_path))
+        run("tar -xzf {} -C {}".format(tmp_path, releases_path))
+        run("rm {}".format(tmp_path))
+        run("mv {}web_static/* {}".format(releases_path, releases_path))
+        run("rm -rf {}web_static".format(releases_path))
+        run("rm -rf /data/web_static/current")
+        run("ln -s {} /data/web_static/current".format(releases_path))
+        print("New version deployed!")
+        return True
     except:
-        print("KEEP TRYING! :)")
-        return(False)
+        return False
