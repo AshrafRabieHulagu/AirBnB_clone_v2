@@ -1,47 +1,34 @@
 #!/usr/bin/python3
-'''Module distributes an archive to your web servers
-using the function do_deploy'''
-
-from datetime import datetime
-from fabric.api import local, env, put, sudo
+""" Fabric script (based on the file 1-pack_web_static.py) that
+    distributes an archive to your web servers,
+    using the function do_deploy """
 import os
+from fabric.api import *
 
 
-env.user = 'ubuntu'
-env.hosts = ['34.75.36.193', '3.94.194.152']
+env.hosts = ['35.237.26.128', '3.92.66.113']
 
 
 def do_deploy(archive_path):
-    '''Method to deploy archive'''
-
+    """ distributes an archive to the
+        web server """
     if os.path.exists(archive_path) is False:
         return False
-
-    arch = archive_path.split("/", 2)[1]
-    new_file = '/data/web_static/releases/{}'.format(
-        arch.split(".", 1)[0])
-    tmp_file = '/tmp/{}'.format(arch)
-    cur = '/data/web_static/current'
-
-    '''
-    archive_path = versions/web_static_20210415160740.tgz
-    arch = web_static_20210415160740.tgz
-    new_file = /data/web_static/releases/web_static_20210415160740
-    tmp_file = /tmp/web_static_20210415160740.tgz
-    cur = /data/web_static/current
-    '''
-
     try:
-        put(archive_path, '/tmp/')
-        sudo("mkdir -p {}/".format(new_file))
-        sudo("tar -xzf {} -C {}/".format(tmp_file, new_file))
-        sudo("rm {}".format(tmp_file))
-        sudo("mv {}/web_static/* {}".format(new_file, new_file))
-        sudo("rm -rf {}/web_static".format(new_file))
-        sudo("rm -rf {}".format(cur))
-        sudo("ln -s {}/ {}".format(new_file, cur))
-        print("YAY! LOVE YOU!")
-        return(True)
-    except:
-        print("KEEP TRYING! :)")
-        return(False)
+        arc = archive_path.split('/')[-1]
+        path = '/data/web_static/releases'
+        directory = arc.split('.')
+        put("{}".format(archive_path), "/tmp/{}".format(arc))
+        run("sudo mkdir -p {}/{}/".format(path, directory[0]))
+        run("sudo tar -xzf /tmp/{} -C {}/{}/".format(arc, path, directory[0]))
+        run("sudo rm /tmp/{}".format(arc))
+        run("sudo mv {}/{}/web_static/* {}/{}/\
+            ".format(path, directory[0], path, directory[0]))
+        run("sudo rm -rf {}/{}/web_static".format(path, directory[0]))
+        run("sudo rm -rf /data/web_static/current")
+        run("sudo ln -sf {}/{}/ /data/web_static/current\
+            ".format(path, directory[0]))
+        print('New version deployed!')
+        return True
+    except Exception:
+        return False
