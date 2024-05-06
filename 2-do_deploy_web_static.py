@@ -1,34 +1,30 @@
 #!/usr/bin/python3
-""" Fabric script (based on the file 1-pack_web_static.py) that
-    distributes an archive to your web servers,
-    using the function do_deploy """
-import os
+""" Deploy archive """
 from fabric.api import *
-
-
-env.hosts = ['35.237.26.128', '3.92.66.113']
+from os.path import exists
+from fabric.network import disconnect_all
+env.user = 'ubuntu'
+env.hosts = ['35.243.178.160', '35.243.142.199']
 
 
 def do_deploy(archive_path):
-    """ distributes an archive to the
-        web server """
-    if os.path.exists(archive_path) is False:
+    """deploy and uncompress file to server."""
+    if not exists(archive_path):
         return False
-    try:
-        arc = archive_path.split('/')[-1]
-        path = '/data/web_static/releases'
-        directory = arc.split('.')
-        put("{}".format(archive_path), "/tmp/{}".format(arc))
-        run("sudo mkdir -p {}/{}/".format(path, directory[0]))
-        run("sudo tar -xzf /tmp/{} -C {}/{}/".format(arc, path, directory[0]))
-        run("sudo rm /tmp/{}".format(arc))
-        run("sudo mv {}/{}/web_static/* {}/{}/\
-            ".format(path, directory[0], path, directory[0]))
-        run("sudo rm -rf {}/{}/web_static".format(path, directory[0]))
-        run("sudo rm -rf /data/web_static/current")
-        run("sudo ln -sf {}/{}/ /data/web_static/current\
-            ".format(path, directory[0]))
-        print('New version deployed!')
-        return True
-    except Exception:
-        return False
+
+    put(archive_path, "/tmp/")
+    name_of_file = archive_path.split('/')[-1]
+    name = name_of_file.split('.')[0]
+    final_path = "/data/web_static/releases/" + name
+    run("mkdir -p " + final_path)
+    run("tar -xzf /tmp/" + name_of_file + " -C " + final_path)
+    run("rm /tmp/" + name_of_file)
+
+    run("mv " + final_path + "/web_static/* " + final_path)
+    run("rm -rf " + final_path + "/web_static/")
+    run("rm -rf /data/web_static/current")
+    run("ln -s {} /data/web_static/current".format(final_path))
+
+    disconnect_all()
+
+    return True
