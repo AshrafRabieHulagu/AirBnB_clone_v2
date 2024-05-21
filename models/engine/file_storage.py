@@ -8,6 +8,7 @@ from models.city import City
 from models.amenity import Amenity
 from models.place import Place
 from models.review import Review
+import shlex
 
 
 class FileStorage:
@@ -25,15 +26,17 @@ class FileStorage:
         Return:
             returns a dictionary of __object
         """
-        if not cls:
-            return self.__objects
+        dic = {}
+        if cls:
+            dictionary = self.__objects
+            for key in dictionary:
+                partition = key.replace('.', ' ')
+                partition = shlex.split(partition)
+                if (partition[0] == cls.__name__):
+                    dic[key] = self.__objects[key]
+            return (dic)
         else:
-            dic_result = {}
-            for key, val in self.__objects.items():
-                name = key.split('.')
-                if name[0] == cls.__name__:
-                    dic_result.update({key: val})
-            return dic_result
+            return self.__objects
 
     def new(self, obj):
         """sets __object to given obj
@@ -65,17 +68,13 @@ class FileStorage:
             pass
 
     def delete(self, obj=None):
-        """delete obj from __objects if it’s inside"""
+        """ delete an existing element
+        """
         if obj:
-            for key in self.__objects:
-                idn = key.split('.')
-                if obj.id == idn[1]:
-                    del self.__objects[key]
-                    break
-            self.save()
+            key = "{}.{}".format(type(obj).__name__, obj.id)
+            del self.__objects[key]
 
     def close(self):
-        """
-        Calls reload() method for deserializing the JSON file to objects
+        """ calls reload()
         """
         self.reload()
