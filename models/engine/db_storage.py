@@ -1,85 +1,85 @@
 #!/usr/bin/python3
-"""model containing database for storage"""
-
-from sqlalchemy.orm import sessionmaker, scoped_session
-from sqlalchemy import create_engine
+"""Defines DBStorage engine"""
+from os import getenv
 from models.base_model import Base
-from models.state import State
-from models.user import User
+from models.base_model import BaseModel
+from models.amenity import Amenity
 from models.city import City
 from models.place import Place
+from models.state import State
 from models.review import Review
-from models.amenity import Amenity
-from os import getenv
-
-if getenv('HBNB_TYPE_STORAGE') == 'db':
-    from models.place import place_amenity
-
-classes = {"State": State, "City": City, "User": User,
-           "Place": Place, "Review": Review, "Amenity": Amenity}
+from models.user import User
+from sqlalchemy import create_engine
+from sqlalchemy.orm import scoped_session
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import relationship
 
 
 class DBStorage:
-    """classe that defines dbstorage instances"""
+    """
+    Represents database storage engine
+
+    Attributes:
+        __engine (sqlalchemy.Engine): working SQLAlchemy engine
+        __session (sqlalchemy.Session): working SQLAlchemy seesion
+    """
 
     __engine = None
     __session = None
 
     def __init__(self):
-        """function that initializes public instances"""
-        user = getenv("HBNB_MYSQL_USER")
-        password = getenv("HBNB_MYSQL_PWD")
-        host = getenv("HBNB_MYSQL_HOST")
-        database = getenv("HBNB_MYSQL_DB")
-        self.__engine = create_engine('mysql+mysqldb://{}:{}@{}/{}'
-                                      .format(user, password, host,
-                                              database), pool_pre_ping=True)
-        if getenv('HBNB_ENV') == 'test':
+        """Initialize new DBStorage Instance"""
+        self.__engine = create_engine("mysql+mysqldb://{}:{}@{}/{}".
+                                      format(getenv("HBNB_MYSQL_USER"),
+                                             getenv("HBNB_MYSQL_PWD"),
+                                             getenv("HBNB_MYSQL_HOST"),
+                                             getenv("HBNB_MYSQL_DB")),
+                                      pool_pre_ping=True)
+        if getenv("HBNB_ENV") == "test":
             Base.metadata.drop_all(self.__engine)
 
     def all(self, cls=None):
-        """returns models of current database"""
-        dictionary = {}
+        """
+        Query on current database session for objects of specfic class
+        If all types of objects are queried, CLS is none
+        
+        Return:
+            Dict of queried classes in '<class name>.<obj id> = obj' format
+        """
         if cls is None:
-            for elem in classes.values():
-                objs = self.__session.query(elem).all()
-                for obj in objs:
-                    key = obj.__class__.__name__ + '.' + obj.id
-                    dictionary[key] = obj
+            objs = self.__session.query(State).all()
+            objs.extend(self.__session.query(City).all())
+            objs.extend(self.__session.query(User).all())
+            objs.extend(self.__session.query(Place).all())
+            objs.extend(self.__session.query(Review).all())
+            objs.extend(self.__session.query(Amenity).all())
         else:
-            objs = self.__session.query(cls).all()
-            for obj in objs:
-                key = obj.__class__.__name__ + '.' + obj.id
-                dictionary[key] = obj
-        return dictionary
+            if type(cls) == str:
+                cls = eval(cls)
+            objs = self.__session.query(cls)
+        return {"{}.{}".format(type(o).__name__, o.id): o for o in objs}
 
     def new(self, obj):
-        """function that adds object to database"""
-        if obj is not None:
-            try:
-                self.__session.add(obj)
-                self.__session.flush()
-                self.__session.refresh(obj)
-            except Exception as error:
-                self.__session.rollback()
-                raise error
+        """Add object to current database session"""
+        self.__session.add(obj)
 
     def save(self):
-        """function that commit all changes of the current database session"""
+        """Commit the changes to current database session"""
         self.__session.commit()
 
     def delete(self, obj=None):
-        """delete from the current database session"""
+        """Delete objects from current database session"""
         if obj is not None:
-            self.__session.query(type(obj)).filter(
-                type(obj).id == obj.id).delete()
+            self.__session.delete(obj)
 
     def reload(self):
-        """function that create all tables in the database"""
+        """Create tables in database and initialize in new session"""
         Base.metadata.create_all(self.__engine)
-        se_factory = sessionmaker(bind=self.__engine, expire_on_commit=False)
-        self.__session = scoped_session(se_factory)()
+        session_factory = sessionmaker(bind=self.__engine,
+                                       expire_on_commit=False)
+        self.__session = scoped_session(session_factory)
+        self.__session = Session()
 
     def close(self):
-        """function that closes current database"""
-        self.__session.close()
+        """Close working SQLAlchemy session"""
+        self.__session.remove()
