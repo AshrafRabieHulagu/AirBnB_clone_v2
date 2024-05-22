@@ -1,78 +1,111 @@
-c#!/usr/bin/python3
-""" New engine """
-from os import getenv
+#!/usr/bin/python3
+"""Module with new DBStorage"""
+
+import os
 from sqlalchemy import create_engine
+from sqlalchemy.schema import MetaData
 from sqlalchemy.orm import sessionmaker, scoped_session
 from models.base_model import Base
-from models.state import State
-from models.city import City
-from models.user import User
-from models.place import Place
-from models.review import Review
-from models.amenity import Amenity
 
 
 class DBStorage:
-    """ DBs class """
+    """Class that represents DBStorage"""
+
     __engine = None
     __session = None
 
     def __init__(self):
-        """ Constructor method """
-        user = getenv("HBNB_MYSQL_USER")
-        passwd = getenv("HBNB_MYSQL_PWD")
-        host = getenv("HBNB_MYSQL_HOST")
-        db = getenv("HBNB_MYSQL_DB")
+        """Method to instantiate class DBStorage attributes"""
 
-        self.__engine = create_engine(
-            'mysql+mysqldb://{}:{}@{}/{}'
-            .format(user, passwd, host, db),
-            pool_pre_ping=True
-        )
+        theUser = os.getenv('HBNB_MYSQL_USER')
+        thePwd = os.getenv('HBNB_MYSQL_PWD')
+        theHost = os.getenv('HBNB_MYSQL_HOST')
+        theDB = os.getenv('HBNB_MYSQL_DB')
+        theEnv = os.getenv('HBNB_ENV')
 
-        if getenv("HBNB_ENV") == 'test':
+        self.__engine = create_engine('mysql+mysqldb://{}:{}@{}/{}'
+                                      .format(theUser, thePwd,
+                                              theHost, theDB),
+                                      pool_pre_ping=True)
+
+        if theEnv == "test":
             Base.metadata.drop_all(self.__engine)
 
     def all(self, cls=None):
-        """ Query on current DB session """
-        cls_list = [State, City, User, Place, Review, Amenity]
-        cls_dict = {}
+        """Method to retrieve all objects depending of the class name"""
+        from models.user import User
+        from models.place import Place
+        from models.city import City
+        from models.base_model import BaseModel
+        from models.state import State
+        from models.review import Review
+        from models.amenity import Amenity
+
+        classes = {
+            'BaseModel': BaseModel, 'User': User, 'Place': Place,
+            'State': State, 'City': City, 'Amenity': Amenity,
+            'Review': Review
+        }
         if cls:
-            for obj in self.__session.query(cls):
-                key = obj.__class__.__name__ + '.' + obj.id
-                cls_dict[key] = obj
-            return cls_dict
+            newDict = {}
+            allClassObjs = self.__session.query(cls).all()
+            for obj in allClassObjs:
+                key = type(obj).__name__ + "." + obj.id
+                newDict[key] = obj
+            return (newDict)
         else:
-            for cls_name in cls_list:
-                for obj in self.__session.query(cls_name):
-                    key = obj.__class__.__name__ + '.' + obj.id
-                    cls_dict[key] = obj
-            return cls_dict
+            allDicts = {}
+
+            dictList = []
+            State = self.all('State')
+            City = self.all('City')
+            dictList.append(State)
+            dictList.append(City)
+
+            '''
+            User = self.all('User'),
+            Amenity = self.all('Amenity'),
+            Place = self.all('Place'),
+            Review = self.all('Review'))'''
+
+            for dicts in dictList:
+                allDicts.update(dicts)
+
+            return(allDicts)
 
     def new(self, obj):
-        """ Add the obj to the current DB """
+        """ add the object to current database session"""
+
         self.__session.add(obj)
 
     def save(self):
-        """ commit all changes to the current DB """
+        """Commits all changes of current database session"""
+
         self.__session.commit()
 
     def delete(self, obj=None):
-        """ delete from current DB if not none """
+        """Method that deletes from current database session"""
+
         if obj:
             self.__session.delete(obj)
-        else:
-            return
 
     def reload(self):
-        """ create all table in the DB """
+        """Reloading database with the stuff from the database"""
+        from models.base_model import BaseModel, Base
+        from models.user import User
+        from models.place import Place
+        from models.state import State
+        from models.city import City
+        from models.amenity import Amenity
+        from models.review import Review
+
         Base.metadata.create_all(self.__engine)
-        Session = scoped_session(sessionmaker(
-            bind=self.__engine,
-            expire_on_commit=False,
-        ))
+
+        sessionFactory = sessionmaker(bind=self.__engine,
+                                      expire_on_commit=False)
+        Session = scoped_session(sessionFactory)
         self.__session = Session()
 
     def close(self):
-        """ Close session """
+        '''Method adding remove method to self.__session'''
         self.__session.close()
