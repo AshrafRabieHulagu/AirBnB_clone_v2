@@ -1,35 +1,25 @@
 #!/usr/bin/python3
-"""
-Flask application that fetches data from a database and
-display its data using a template
-"""
+"""Flask framework"""
 from flask import Flask, render_template
 from models import storage
 from models.state import State
 
-app = Flask(__name__.split('.')[0])
-
-app.url_map.strict_slashes = False
-
-
-@app.route('/states_list')
-def list_states():
-    """
-    Returns the list of states present in the database
-    by passing the states list into the template
-    """
-    s = storage.all(State).values()
-    return render_template('7-states_list.html', states=s)
+app = Flask(__name__)
 
 
 @app.teardown_appcontext
-def teardown_context(exception):
-    """
-    closes the scoped session and reloads
-    the session
-    """
-    storage.close()
+def teardown_db(exception):
+    """ teardown db"""
+    if storage is not None:
+        storage.close()
 
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0")
+@app.route("/states_list", strict_slashes=False)
+def states_list():
+    """ list of state ids"""
+    data = storage.all(State)
+    return render_template('7-states_list.html', total=data.values())
+
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
