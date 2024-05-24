@@ -1,86 +1,109 @@
 #!/usr/bin/python3
-"""This is the file storage class for AirBnB"""
+"""Module to define FileStorage class"""
+
+import importlib
 import json
-import sys
-from models.base_model import BaseModel
-from models.user import User
-from models.state import State
-from models.city import City
-from models.amenity import Amenity
-from models.place import Place
-from models.review import Review
+import os
 
 
 class FileStorage:
-    """This class serializes instances to a JSON file and
-    deserializes JSON file to instances
+    """Defines a FileStorage class
+
     Attributes:
-        __file_path: path to the JSON file
-        __objects: objects will be stored
+        __file_path (str): path to the JSON file
+        __objects (dict): dictionary of objects
     """
+
     __file_path = "file.json"
     __objects = {}
 
     def all(self, cls=None):
-        """returns a dictionary
-        Return:
-            returns a dictionary of __object
+        """Gets the whole  __objects attribute or specific objects
+        based on the cls
+
+        Args:
+            cls: class to filter the objects
+
+        Returns:
+            a dictionary of objects
         """
-        if cls is None:
-            return self.__objects
-        else:
-            new_dict = {}
-            if len(self.__objects) > 0:
-                for key, value in self.__objects.items():
-                    if type(cls) is str:
-                        if cls == key.split('.')[0]:
-                            new_dict[key] = value
-                    else:
-                        if cls is type(value):
-                            new_dict[key] = value
-            return new_dict
+
+        objs = self.__objects
+
+        if cls:
+            cls_name = cls.__name__
+            cls_objs = {
+                    k: obj for k, obj in objs.items() if k.startswith(cls_name)
+                    }
+            return cls_objs
+
+        return objs
 
     def new(self, obj):
-        """sets __object to given obj
+        """Adds a new object to the __objects attribute
+
         Args:
-            obj: given object
+            obj (object): an instance of the BaseModel class
         """
-        if obj:
-            key = "{}.{}".format(type(obj).__name__, obj.id)
-            self.__objects[key] = obj
+        cls_name = obj.__class__.__name__
+        key = "{}.{}".format(cls_name, obj.id)
+        objects = self.all()
+        objects[key] = obj
 
     def save(self):
-        """serialize the file path to JSON file path
+        """Serializes __objects to a JSON file with __file_path path
         """
-        my_dict = {}
-        for key, value in self.__objects.items():
-            my_dict[key] = value.to_dict()
-        with open(self.__file_path, 'w', encoding="UTF-8") as f:
-            json.dump(my_dict, f)
+
+        objects = self.all()
+        objects_to_save = {}
+
+        for id, obj in objects.items():
+            objects_to_save[id] = obj.to_dict()
+
+        jsons = json.dumps(objects_to_save)
+
+        with open(self.__file_path, mode="w", encoding="utf-8") as file:
+            file.write(jsons)
 
     def reload(self):
-        """serialize the file path to JSON file path
+        """Deserializes the JSON file into the __objects attribute
         """
-        try:
-            with open(self.__file_path, 'r', encoding="UTF-8") as f:
-                for key, value in (json.load(f)).items():
-                    value = eval(value["__class__"])(**value)
-                    self.__objects[key] = value
-        except FileNotFoundError:
-            pass
+
+        modules = {"BaseModel": "base_model",
+                   "User": "user",
+                   "State": "state",
+                   "City": "city",
+                   "Amenity": "amenity",
+                   "Place": "place",
+                   "Review": "review"
+                   }
+        file_path = self.__file_path
+        pkg = "models.engine"
+        if os.path.isfile(file_path):
+            with open(file_path, encoding="utf-8") as file:
+                jsons = file.read()
+
+            objects_to_load = json.loads(jsons)
+            for id, dct in objects_to_load.items():
+                cls_name = dct["__class__"]
+                model_path = "..{}".format(modules[cls_name])
+                module = importlib.import_module(model_path, pkg)
+                cls = getattr(module, dct["__class__"])
+                obj = cls(**dct)
+                self.new(obj)
 
     def delete(self, obj=None):
-        """Deletes obj from __objecs if its inside
-        Not sure if it should also delete from json file
+        """Delets an object from the _objects
         """
 
-        dict_key = ""
-        for key, value in self.__objects.items():
-            if obj == value:
-                dict_key = key
-        if dict_key is not "":
-            del self.__objects[dict_key]
+        objs = self.all()
+        if obj is not None:
+            cls_name = obj.__class__.__name__
+            key = "{}.{}".format(cls_name, obj.id)
+            if key in objs:
+                del objs[key]
 
     def close(self):
-        """ calls reload() for deserializing the JSON file to objects."""
+        """reloads the objects
+        """
         self.reload()
