@@ -1,30 +1,35 @@
 #!/usr/bin/python3
-"""Module that creates a flask app
 """
-
-from flask import Flask, render_template, g
-from markupsafe import escape
+Flask application that fetches data from a database and
+display its data using a template
+"""
+from flask import Flask, render_template
 from models import storage
 from models.state import State
 
-app = Flask(__name__)
+app = Flask(__name__.split('.')[0])
+
+app.url_map.strict_slashes = False
 
 
-@app.route('/states_list', strict_slashes=False)
-def states_list():
-    """Generates a list of the states on the '/states_list' route
+@app.route('/states_list')
+def list_states():
     """
-    states_dct = storage.all(State)
-    states_objs = states_dct.values()
-    return render_template("7-states_list.html", states=states_objs)
+    Returns the list of states present in the database
+    by passing the states list into the template
+    """
+    s = storage.all(State).values()
+    return render_template('7-states_list.html', states=s)
 
 
 @app.teardown_appcontext
-def close_session(exception):
-    """Closes the database storage session
+def teardown_context(exception):
+    """
+    closes the scoped session and reloads
+    the session
     """
     storage.close()
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port="5000")
+    app.run(host="0.0.0.0")
