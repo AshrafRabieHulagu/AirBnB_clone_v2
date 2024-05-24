@@ -1,109 +1,86 @@
 #!/usr/bin/python3
+"""DB storage
 """
-Database Storage System
-"""
+import models
+from models.base_model import BaseModel, Base
+from models import city, state
+from os import environ, getenv
+from sqlalchemy.orm import scoped_session
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, scoped_session
-import os
+
+HBNB_MYSQL_USER = getenv('HBNB_MYSQL_USER')
+HBNB_MYSQL_PWD = getenv('HBNB_MYSQL_PWD')
+HBNB_MYSQL_HOST = getenv('HBNB_MYSQL_HOST')
+HBNB_MYSQL_DB = getenv('HBNB_MYSQL_DB')
 
 
 class DBStorage:
+    """database storage for mysql conversion
+    """
     __engine = None
     __session = None
-    __Session = None
 
     def __init__(self):
-        """
-        create the engine (self.__engine)
-        """
-        username = os.getenv("HBNB_MYSQL_USER")
-        password = os.getenv("HBNB_MYSQL_PWD")
-        host = os.getenv("HBNB_MYSQL_HOST")
-        db = os.getenv("HBNB_MYSQL_DB")
-        env = os.getenv("HBNB_ENV")
-        url = "mysql+mysqldb://{}:{}@{}:3306/{}?charset=latin1"\
-              .format(username, password, host, db)
-        self.__engine = create_engine(url, pool_pre_ping=True)
-        if env == "test":
-            conn = self.__engine.connect()
-            tables = conn.execute("SHOW TABLES")
-            for table in tables.fetchall():
-                conn.execute(f"DROP TABLE IF EXISTS {table[0]}")
+        """initializer for DBStorage"""
+        self.__engine = create_engine('mysql+mysqldb://{}:{}@{}/{}'.format(
+            HBNB_MYSQL_USER,
+            HBNB_MYSQL_PWD,
+            HBNB_MYSQL_HOST,
+            HBNB_MYSQL_DB), pool_pre_ping=True)
+        env = getenv("HBNB_ENV")
+        if (env == "test"):
+            Base.metadata.drop_all(self.__engine)
 
     def all(self, cls=None):
+        """Query the current session and list all instances of cls
         """
-        query on the current database session (self.__session) all objects
-        depending of the class name (argument cls)
-        if cls=None, query all types of objects (User, State, City,
-        Amenity, Place and Review)
-        this method must return a dictionary: (like FileStorage)
-        key = <class-name>.<object-id>
-        value = object
-        """
-        from models.user import User
-        from models.place import Place
-        from models.state import State
-        from models.city import City
-        from models.amenity import Amenity
-        from models.review import Review
-
-        obj = {}
-        map_classes = {
-                    'User': User, 'Place': Place,
-                    'State': State, 'City': City, 'Amenity': Amenity,
-                    'Review': Review
-                }
+        result = {}
         if cls:
-            for data in self.__session.query(map_classes[cls.__name__]).all():
-                key = f"{cls.__name__}.{data.id}"
-                obj[key] = data
+            for row in self.__session.query(cls).all():
+                key = "{}.{}".format(cls.__name__, row.id)
+                row.to_dict()
+                result.update({key: row})
         else:
-            cls = ("User", "State", "City",
-                   "Amenity", "Place", "Review")
-            for c in cls:
-                for data in self.__session.query(map_classes[c]).all():
-                    key = f"{c}.{data.id}"
-                    obj[key] = data
-        return obj
+            for table in models.dummy_tables:
+                cls = models.dummy_tables[table]
+                for row in self.__session.query(cls).all():
+                    key = "{}.{}".format(cls.__name__, row.id)
+                    row.to_dict()
+                    result.update({key: row})
+        return result
+
+    def rollback(self):
+        """rollback changes
+        """
+        self.__session.rollback()
 
     def new(self, obj):
-        """
-         add the object to the current database session (self.__session)
+        """add object to current session
         """
         self.__session.add(obj)
 
     def save(self):
+        """commit current done work
         """
-        commit all changes of the current database session (self.__session)
-        """
-        try:
-            self.__session.commit()
-
-        except PendingRollbackError:
-            self.__session.Rollback()
+        self.__session.commit()
 
     def delete(self, obj=None):
+        """delete obj from session
         """
-        delete from the current database session obj if not None
-        """
-        if obj:
+        if (obj is None):
             self.__session.delete(obj)
 
     def reload(self):
-        from models.user import User
-        from models.place import Place
-        from models.state import State
-        from models.city import City
-        from models.amenity import Amenity
-        from models.review import Review
-        from models.base_model import Base
+        """reload the session
+        """
         Base.metadata.create_all(self.__engine)
-        session_factory = sessionmaker(bind=self.__engine,
-                                       expire_on_commit=False)
-        self.__Session = scoped_session(session_factory)
-        self.__session = self.__Session()
+        Session = sessionmaker(bind=self.__engine, expire_on_commit=False)
+        Scope = scoped_session(Session)
+        self.__session = Scope()
 
     def close(self):
-        """ Method to close a session """
-        self.__Session.remove()
+        """display our HBNB data
+        """
+        self.__session.__class__.close(self.__session)
         self.reload()
