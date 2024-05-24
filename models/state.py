@@ -2,29 +2,32 @@
 """ State Module for HBNB project """
 import models
 from models.base_model import BaseModel, Base
-from models.city import City
 from sqlalchemy import Column, String
 from sqlalchemy.orm import relationship
+from models.city import City
 from os import getenv
+
+storage_type = getenv('HBNB_TYPE_STORAGE')
 
 
 class State(BaseModel, Base):
     """ State class """
     __tablename__ = "states"
-
     name = Column(String(128), nullable=False)
-    # cascade "all, delete" when a `state`` object is marked for
-    # deletion,its related `city` objects should also be marked for deletion
-    if getenv("HBNB_TYPE_STORAGE") == "db":  # is DB is in use?
-        cities = relationship('City', backref="state",
-                              cascade="all, delete, delete-orphan")
-    else:  # use a property for file storage
+
+    if storage_type == "db":
+        cities = relationship(
+            "City",
+            backref="state",
+            cascade="all, delete, delete-orphan",
+            passive_deletes=True)
+    else:
         @property
         def cities(self):
-            """ cities implementation for `file` storage type """
-            all_cities = models.storage.all(City)
-            _cities = []
-            for city in all_cities.values():
-                if city.state_id == self.id:
-                    _cities.append(city)
-            return _cities
+            """ Getter that that returns the list of City instances """
+            cities_instances = models.storage.all(City)
+            new_list = []
+            for value in cities_instances.values():
+                if value.state_id == self.id:
+                    new_list.append(value)
+            return new_list
