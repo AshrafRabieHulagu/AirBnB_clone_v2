@@ -1,117 +1,109 @@
 #!/usr/bin/python3
-"""Module for the database storage
 """
-
-import importlib
-import os
+Database Storage System
+"""
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
+import os
 
 
 class DBStorage:
-    """represents a database storage object
-
-    Attributes:
-        __engine (obj): sqlalchemy engine insatnce
-        __session (obj): connection sesssion with the database
-    """
-
     __engine = None
     __session = None
+    __Session = None
 
     def __init__(self):
-
+        """
+        create the engine (self.__engine)
+        """
         username = os.getenv("HBNB_MYSQL_USER")
-        pwd = os.getenv("HBNB_MYSQL_PWD")
+        password = os.getenv("HBNB_MYSQL_PWD")
         host = os.getenv("HBNB_MYSQL_HOST")
         db = os.getenv("HBNB_MYSQL_DB")
-        url = "mysql+mysqldb://{}:{}@{}/{}".format(username, pwd, host, db)
-
+        env = os.getenv("HBNB_ENV")
+        url = "mysql+mysqldb://{}:{}@{}:3306/{}?charset=latin1"\
+              .format(username, password, host, db)
         self.__engine = create_engine(url, pool_pre_ping=True)
-
-        if os.getenv("HBNB_ENV") == "test":
-            from models.base_model import Base
-            Base.metadata.drop_all(self.__engine)
+        if env == "test":
+            conn = self.__engine.connect()
+            tables = conn.execute("SHOW TABLES")
+            for table in tables.fetchall():
+                conn.execute(f"DROP TABLE IF EXISTS {table[0]}")
 
     def all(self, cls=None):
-        """Gets a dictionary of objects based on the cls value or
-        all objects if cls is None
-
-        Args:
-            cls (class): class to filter the objects
-
-        Returns:
-            a dictionary of objects
         """
-
-        modules = ["user", "state", "city", "amenity", "place", "review"]
-        dct = {}
-        Session = self.__session
-        session = Session()
-        pkg = "models.engine"
-
-        if cls:
-            model_name = cls.__name__
-            model_path = "..{}".format(model_name.lower())
-            module = importlib.import_module(model_path, pkg)
-            model = getattr(module, model_name.capitalize())
-            for instance in session.query(model).all():
-                key = "{}.{}".format(cls, instance.id)
-                dct[key] = instance
-        else:
-            for name in modules:
-                from models.base_model import Base
-                model_path = "..{}".format(name)
-                module = importlib.import_module(model_path, pkg)
-                model = getattr(module, name.capitalize())
-                if issubclass(model, Base):
-                    cls_name = model.__name__
-                    for instance in session.query(model).all():
-                        key = "{}.{}".format(cls_name, instance.id)
-                        dct[key] = instance
-        return dct
-
-    def new(self, obj):
-        """Adds the object obj to the current database session
+        query on the current database session (self.__session) all objects
+        depending of the class name (argument cls)
+        if cls=None, query all types of objects (User, State, City,
+        Amenity, Place and Review)
+        this method must return a dictionary: (like FileStorage)
+        key = <class-name>.<object-id>
+        value = object
         """
-        Session = self.__session
-        session = Session()
-        session.add(obj)
-
-    def save(self):
-        """Commits all the changes to the current database session
-        """
-        Session = self.__session
-        session = Session()
-        session.commit()
-
-    def delete(self, obj=None):
-        """deletes from the current database session obj if not None
-        """
-        if obj:
-            Session = self.__session
-            session = Session()
-            session.delete(obj)
-
-    def reload(self):
-        """creates all the database tables, then creates a session
-        """
-
         from models.user import User
+        from models.place import Place
         from models.state import State
         from models.city import City
         from models.amenity import Amenity
+        from models.review import Review
+
+        obj = {}
+        map_classes = {
+                    'User': User, 'Place': Place,
+                    'State': State, 'City': City, 'Amenity': Amenity,
+                    'Review': Review
+                }
+        if cls:
+            for data in self.__session.query(map_classes[cls.__name__]).all():
+                key = f"{cls.__name__}.{data.id}"
+                obj[key] = data
+        else:
+            cls = ("User", "State", "City",
+                   "Amenity", "Place", "Review")
+            for c in cls:
+                for data in self.__session.query(map_classes[c]).all():
+                    key = f"{c}.{data.id}"
+                    obj[key] = data
+        return obj
+
+    def new(self, obj):
+        """
+         add the object to the current database session (self.__session)
+        """
+        self.__session.add(obj)
+
+    def save(self):
+        """
+        commit all changes of the current database session (self.__session)
+        """
+        try:
+            self.__session.commit()
+
+        except PendingRollbackError:
+            self.__session.Rollback()
+
+    def delete(self, obj=None):
+        """
+        delete from the current database session obj if not None
+        """
+        if obj:
+            self.__session.delete(obj)
+
+    def reload(self):
+        from models.user import User
         from models.place import Place
+        from models.state import State
+        from models.city import City
+        from models.amenity import Amenity
         from models.review import Review
         from models.base_model import Base
-
         Base.metadata.create_all(self.__engine)
-        session_fac = sessionmaker(self.__engine, expire_on_commit=False)
-        Session = scoped_session(session_fac)
-        self.__session = Session
+        session_factory = sessionmaker(bind=self.__engine,
+                                       expire_on_commit=False)
+        self.__Session = scoped_session(session_factory)
+        self.__session = self.__Session()
 
     def close(self):
-        """Closes the database sessions
-        """
-        session = self.__session
-        session.remove()
+        """ Method to close a session """
+        self.__Session.remove()
+        self.reload()
