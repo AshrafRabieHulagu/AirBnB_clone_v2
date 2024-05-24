@@ -9,16 +9,16 @@ class FileStorage:
     __objects = {}
 
     def all(self, cls=None):
-        """Returns a dictionary of models currently in storage"""
-        if cls is not None:
-            new_dict = {}
+        """Returns a dictionary of models currently in storage
+        or a certain class objects"""
+        new_dict = {}
+        if not cls:
+            return self.__objects
+        else:
             for key, value in self.__objects.items():
-                sp = key.split('.')
-                if sp[0] == cls.__name__:
+                if value.__class__ == cls:
                     new_dict[key] = value
             return new_dict
-        else:
-            return FileStorage.__objects
 
     def new(self, obj):
         """Adds new object to storage dictionary"""
@@ -26,13 +26,12 @@ class FileStorage:
 
     def save(self):
         """Saves storage dictionary to file"""
-        dic_to_save = {}
-
-        for key in self.__objects.keys():
-            dic_to_save[key] = self.__objects.get(key).to_dict()
-
-        with open(self.__file_path, mode='w', encoding="utf-8") as f:
-            json.dump(dic_to_save, f)
+        with open(FileStorage.__file_path, 'w') as f:
+            temp = {}
+            temp.update(FileStorage.__objects)
+            for key, val in temp.items():
+                temp[key] = val.to_dict()
+            json.dump(temp, f)
 
     def reload(self):
         """Loads storage dictionary from file"""
@@ -51,26 +50,23 @@ class FileStorage:
                   }
         try:
             temp = {}
-            with open(self.__file_path, 'r', encoding="utf-8") as f:
+            with open(FileStorage.__file_path, 'r') as f:
                 temp = json.load(f)
                 for key, val in temp.items():
                     self.all()[key] = classes[val['__class__']](**val)
-        except Exception:
+        except FileNotFoundError:
             pass
 
     def delete(self, obj=None):
-        """ Instance public method to delete an obj"""
+        """Delete object from __objects"""
+        cls_key = ""
         if obj is not None:
-            key_obj = None
             for key, value in self.__objects.items():
-                if value == obj:
-                    key_obj = key
-                    break
-            del self.__objects[key_obj]
+                if value.id == obj.id:
+                    cls_key = key
+            del self.__objects[cls_key]
+            self.save()
 
     def close(self):
-        """
-        Instance public method that calls reload method
-        for deserializing the JSON file to objects
-        """
+        """Function to call reload()"""
         self.reload()

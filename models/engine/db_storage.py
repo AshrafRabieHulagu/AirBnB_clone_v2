@@ -1,88 +1,89 @@
 #!/usr/bin/python3
-""" State Module for HBNB project """
-from os import getenv
-from sqlalchemy import (create_engine)
+"""db_storage module"""
+import os
+from sqlalchemy import create_engine, Column, String
 from sqlalchemy.orm import sessionmaker, scoped_session
-from sqlalchemy.sql.schema import MetaData
 from models.base_model import Base
-from models.amenity import Amenity
-from models.city import City
-from models.place import Place
-from models.review import Review
-from models.state import State
 from models.user import User
-
-
-user = getenv('HBNB_MYSQL_USER')
-password = getenv('HBNB_MYSQL_PWD')
-host = getenv('HBNB_MYSQL_HOST')
-database = getenv('HBNB_MYSQL_DB')
-env = getenv('HBNB_ENV')
-config = 'mysql+mysqldb://{}:{}@{}/{}'.format(
-    user, password, host, database)
+from models.place import Place
+from models.state import State
+from models.city import City
+from models.amenity import Amenity
+from models.review import Review
 
 
 class DBStorage:
     """
-    Class that configures a database
+    A class to handle database storage operations.
     """
     __engine = None
     __session = None
 
     def __init__(self):
-        self.__engine = create_engine(config, pool_pre_ping=True)
-
-        """ Drop all tables"""
-        if env == "test":
-            metadata = MetaData(self.__engine)
-            metadata.reflect()
-            metadata.drop_all()
+        """
+        Initializes the database connection using environment variables.
+        """
+        user = os.getenv("HBNB_MYSQL_USER")
+        password = os.getenv("HBNB_MYSQL_PWD")
+        host = os.getenv("HBNB_MYSQL_HOST")
+        db_name = os.getenv("HBNB_MYSQL_DB")
+        mode = os.getenv("HBNB_ENV")
+        db_url = "mysql+mysqldb://{}:{}@{}/{}".format(
+            user, password, host, db_name)
+        self.__engine = create_engine(db_url, pool_pre_ping=True)
+        if mode == "test":
+            Base.metadata.drop_all(self.__engine)
 
     def all(self, cls=None):
-        """Retrives a dictionary of class instances"""
+        """
+        Retrieves all objects of a given class from the database,
+        or all objects if no class is specified.
+        """
+        all_classes = {'State': State, 'City': City, 'Amenity': Amenity,
+                       'Place': Place, 'User': User, 'Review': Review}
+        all_obj = []
         new_dict = {}
-        classes = {
-            'User': User, 'Place': Place, 'Review': Review,
-            'State': State, 'City': City, 'Amenity': Amenity
-        }
-        if cls:
-            if cls in classes.keys():
-                data = self.__session.query(classes[cls]).all()
-                for obj in data:
-                    new_dict[obj.__class__.__name__ + '.' + obj.id] = obj
-            else:
-                data = self.__session.query(cls).all()
-                for obj in data:
-                    new_dict[obj.__class__.__name__ + '.' + obj.id] = obj
+        if cls is None:
+            for value in all_classes.values():
+                all_obj.extend(self.__session.query(value).all())
         else:
-            for class_name in classes:
-                data = self.__session.query(classes[class_name]).all()
-                for obj in data:
-                    new_dict[obj.__class__.__name__ + '.' + obj.id] = obj
-
+            all_obj = self.__session.query(cls).all()
+        for obj in all_obj:
+            new_dict[f"{obj.__class__.__name__}.{obj.id}"] = obj
         return new_dict
 
     def new(self, obj):
-        """ Add new elements """
-        self.__session.add(obj)
+        """
+        Adds a new object to the database session.
+        """
+        if obj is not None:
+            self.__session.add(obj)
 
     def save(self):
-        """Commit all changes of the current database session"""
+        """
+        Commits the current database session,
+        saving all new and changed objects.
+        """
         self.__session.commit()
 
     def delete(self, obj=None):
-        """Delete from the current database session obj if not None"""
+        """
+        Deletes an object from the database session.
+        """
         if obj is not None:
             self.__session.delete(obj)
 
     def reload(self):
-        """Configure and create a session"""
+        """
+        Recreates the database session, useful for test environments.
+        """
         Base.metadata.create_all(self.__engine)
-        session_factory = sessionmaker(bind=self.__engine,
-                                       expire_on_commit=False)
-        Session = scoped_session(session_factory)
+        Session = scoped_session(sessionmaker(bind=self.__engine,
+                                              expire_on_commit=False))
         self.__session = Session()
 
     def close(self):
-        """Public method to close the session"""
+        """
+        close session.
+        """
         self.__session.close()
