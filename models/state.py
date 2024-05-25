@@ -1,39 +1,29 @@
 #!/usr/bin/python3
-# File: state.py
-# Main Authors: Justin Majetich - Ezra Nobrega
-# email(s): <justinmajetich@gmail.com>
-#           <ezra.nobrega@outlook.com>
-# Collaborators: Yoshua Lopez - Ma Paz Quirola - Laura Socarras
-#
-
-""" State Module for HBNB project """
-import os
-from sqlalchemy import Column, String
-from sqlalchemy.orm import relationship
-
+"""This is the state class"""
 from models.base_model import BaseModel, Base
+from sqlalchemy.orm import relationship
+from sqlalchemy import Column, String
+import models
 from models.city import City
+from os import getenv
 
 
 class State(BaseModel, Base):
-    """ State class """
-    __tablename__ = 'states'
-    name = Column(
-        String(128), nullable=False
-    ) if os.getenv('HBNB_TYPE_STORAGE') == 'db' else ''
-    if os.getenv('HBNB_TYPE_STORAGE') == 'db':
-        cities = relationship(
-            'City',
-            cascade='all, delete, delete-orphan',
-            backref='state'
-        )
-    else:
+    """This is the class for State
+    Attributes:
+        name: input name
+    """
+    __tablename__ = "states"
+    name = Column(String(128), nullable=False)
+    cities = relationship("City", cascade="delete", backref="state")
+
+    if getenv("HBNB_TYPE_STORAGE") != "db":
         @property
         def cities(self):
-            """Returns the cities in this State"""
-            from models import storage
-            cities_in_state = []
-            for value in storage.all(City).values():
-                if value.state_id == self.id:
-                    cities_in_state.append(value)
-            return cities_in_state
+            """Returns a list of all city related objects"""
+            var = list(models.storage.all(City).values())
+            result = []
+            for city in var:
+                if (city.state_id == self.id):
+                    result.append(city)
+            return (result)
