@@ -1,26 +1,36 @@
 #!/usr/bin/python3
-"""simple flask app
+"""0x04. AirBnB clone - Web framework, task 8. List of states
 """
 from flask import Flask, render_template
+from os import environ
 from models import storage
+from models.state import State
+
 app = Flask(__name__)
+environ['FLASK_ENV'] = 'development'
 
 
 @app.teardown_appcontext
-def shutdown_session(exception=None):
-    """reload storage after each request
+def states_list_teardown(self):
+    """ Ensures SQLAlchemy session opened to serve dynamic content for HTML
+    templates is closed after serving.
     """
     storage.close()
 
 
-@app.route("/states_list", strict_slashes=False)
+@app.route('/states_list', strict_slashes=False)
 def states_list():
-    """list states sorted by name
+    """ Requests list of `State`s ordered by name, which populates HTML
+    template served to '/states_list'.
     """
-    states = list(storage.all("State").values())
-    states.sort(key=lambda x: x.name)
-    return render_template('7-states_list.html', states=states)
+    # session = storage._DBStorage__session
+    # states_sorted = session.query(State).order_by(State.name).all()
+
+    # states = storage.all(State).values()
+    # states_sorted = sorted(states, key=lambda state: state.name)
+
+    return render_template('7-states_list.html', states=storage.all(State))
 
 
-if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000)
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port='5000')
