@@ -1,82 +1,107 @@
 #!/usr/bin/python3
-"""Defines the DBStorage engine."""
-from os import getenv
-from models.base_model import BaseModel, Base
-from models.amenity import Amenity
-from models.city import City
-from models.place import Place
-from models.review import Review
-from models.state import State
-from models.user import User
-from sqlalchemy import create_engine
-from sqlalchemy.orm import relationship
-from sqlalchemy.orm import sessionmaker, scoped_session
-
-all_classes = {'State': State, 'City': City,
-               'User': User, 'Place': Place,
-               'Review': Review, 'Amenity': Amenity}
+"""This module defines a class to manage db storage for hbnb clone"""
+from sqlalchemy import create_engine, MetaData, select
+import sqlalchemy.orm as orm
+import os
 
 
 class DBStorage:
-    """Initialize a new DBStorage instance.
-
-    params:
-      __engine (sqlalchemy.Engine) : engine object
-      __session (sqlalchemy.Session) : session object
-    """
+    """This class manages storage of hbnb models using a DB"""
     __engine = None
     __session = None
 
     def __init__(self):
-        """Initialize a new DBStorage instance."""
-        self.__engine = create_engine("mysql+mysqldb://{}:{}@{}/{}".
-                                      format(getenv("HBNB_MYSQL_USER"),
-                                             getenv("HBNB_MYSQL_PWD"),
-                                             getenv("HBNB_MYSQL_HOST"),
-                                             getenv("HBNB_MYSQL_DB")),
-                                      pool_pre_ping=True)
-        if getenv("HBNB_ENV") == "test":
-            Base.metadata.drop_all(self.__engine)
+        """Returns a sqlachemy orm object of models currently the storage"""
+        from models.base_model import Base
+
+        USER = os.getenv("HBNB_MYSQL_USER")
+        PWD = os.getenv("HBNB_MYSQL_PWD")
+        HOST = os.getenv("HBNB_MYSQL_HOST")
+        DB = os.getenv("HBNB_MYSQL_DB")
+        ENV = os.getenv("HBNB_ENV")
+        conn_str = "mysql+mysqldb://{}:{}@{}/{}".format(USER, PWD, HOST, DB)
+        self.__engine = create_engine(conn_str, pool_pre_ping=True)
+        Base.metadata.create_all(self.__engine)
+
+        if ENV == "test":
+            metadata = MetaData()  # Meta data object
+            metadata.reflect(self.__engine)  # Analyze db relationships
+            # Drop all tables in their dependencies order
+            metadata.drop_all(self.__engine)
 
     def all(self, cls=None):
-        """Query on the curret database session all objects of the given class.
-        If cls is None, queries all types of objects.
-        Return:
-            Dict of queried classes in the format <class name>.<obj id> = obj.
-        """
-        if cls is None:
-            obj_list = []
-            for cls in all_classes.values():
-                obj_list.extend(self.__session.query(cls).all())
-        else:
-            if cls in all_classes:
-                cls = all_classes[cls]
-            obj_list = self.__session.query(cls)
-        return {"{}.{}".format(type(obj).__name__, obj.id):
-                obj for obj in obj_list}
+        """Retrieve all objects depending of the class name"""
+        from models.city import City
+        from models.state import State
+        from models.user import User
+        from models.review import Review
+        from models.place import Place
+        from models.amenity import Amenity
+
+
+        models = [State, City, User, Review, Place, Amenity]  # all models
+        cls_model = None  # temp var for cls's real model
+        # If cls argument is given, query that only else query all of them
+        if cls:
+            for model in models:
+                if model.__name__ == cls.__name__:
+                    cls_model = model
+                    break
+            if cls_model:
+                models = [cls_model]
+        out = {}  # The dictionary to be returned
+        results = []  # The results to be compiled from db queries
+
+        for m in models:
+            results += self.__session.query(m).all()
+
+        for inst in results:
+            # obj = inst.to_dict()
+            # obj["created_at"] = repr(inst.created_at)
+            # obj["updated_at"] = repr(inst.updated_at)
+            key = inst.__class__.__name__
+            # val = f"[{key}] ({inst.id}) "
+            # if "__class__" in obj:
+            #     del obj["__class__"]
+            # val += str(obj)
+            out[key+"."+inst.id] = inst
+        # User, State, City, Amenity, Place and Review
+        return out
 
     def new(self, obj):
-        """Add obj to the current database session."""
+        """add the object to the current database session"""
         self.__session.add(obj)
 
     def save(self):
-        """Commit all changes to the current database session."""
+        """commit all changes of the current database session"""
+        # self.__session.add(self)
         self.__session.commit()
 
     def delete(self, obj=None):
-        """Delete obj from the current database session."""
-        if obj is not None:
+        """delete from the current database session obj if not None"""
+        if obj:
             self.__session.delete(obj)
+            self.save()
 
     def reload(self):
-        """Create all tables in the database and initialize a new session."""
-        Base.metadata.create_all(bind=self.__engine)
-        Session = scoped_session(sessionmaker(bind=self.__engine,
-                                              expire_on_commit=False))
-        self.__session = Session()
+        """create all tables in the database"""
+        from models.base_model import BaseModel
+        from models.user import User
+        from models.place import Place
+        from models.state import State
+        from models.city import City
+        from models.amenity import Amenity
+        from models.review import Review
+        from models.base_model import Base
+
+        # for model in [BaseModel, User, Place, State, City, Amenity, Review]:
+        # self.new(model)
+
+        Base.metadata.create_all(self.__engine)
+        factory = orm.sessionmaker(bind=self.__engine)
+        Session = orm.scoped_session(factory)
+        self.__session = Session(bind=self.__engine, expire_on_commit=False)
 
     def close(self):
-        """Close the working SQLAlchemy session.
-        clears all items and ends any transaction in progress
-        """
+        """ closes the self.__session which stops all the transactions """
         self.__session.close()
