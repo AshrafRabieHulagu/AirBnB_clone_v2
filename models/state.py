@@ -1,33 +1,32 @@
 #!/usr/bin/python3
-""" 0x02. AirBnB clone - MySQL, task 6. DBStorage - States and Cities """
+""" State Module for HBNB project """
+import os
 from sqlalchemy import Column, String
 from sqlalchemy.orm import relationship
-from .city import City
-from .base_model import BaseModel, Base
-from os import getenv
+
+from models.base_model import BaseModel, Base
+from models.city import City
 
 
 class State(BaseModel, Base):
-    """Defines attributes for `State` as it inherits from `BaseModel`,
-    and ORM properties in relation to table `states`.
-    Attributes:
-        name (Column): name of state, string of max 128 chars
-        cities (relationship): one-to-many-association to `City`
-    """
+    """ State class """
     __tablename__ = 'states'
-    name = Column(String(128), nullable=False)
-    cities = relationship("City", cascade="all, delete-orphan",
-                          backref="state")
-
-    if getenv('HBNB_TYPE_STORAGE') != 'db':
+    name = Column(
+        String(128), nullable=False
+    ) if os.getenv('HBNB_TYPE_STORAGE') == 'db' else ''
+    if os.getenv('HBNB_TYPE_STORAGE') == 'db':
+        cities = relationship(
+            'City',
+            cascade='all, delete, delete-orphan',
+            backref='state'
+        )
+    else:
         @property
         def cities(self):
-            """ Getter for list of all `City` objects when in file storage
-            mode.
-            """
-            from . import storage
-            cities = []
-            for city in storage.all(City).values():
-                if city.state_id == self.id:
-                    cities.append(city)
-            return cities
+            """Returns the cities in this State"""
+            from models import storage
+            cities_in_state = []
+            for value in storage.all(City).values():
+                if value.state_id == self.id:
+                    cities_in_state.append(value)
+            return cities_in_state
