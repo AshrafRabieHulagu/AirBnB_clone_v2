@@ -11,7 +11,7 @@ do_deploy = __import__('2-do_deploy_web_static').do_deploy
 '''
 
 env.user = 'ubuntu'
-env.hosts = ['34.75.36.193', '3.94.194.152']
+env.hosts = ['18.214.88.86', '107.23.100.90']
 
 
 def do_deploy(archive_path):
