@@ -1,63 +1,75 @@
 #!/usr/bin/python3
-from fabric.api import *
-from os.path import exists
+import os.path
 from datetime import datetime
+from fabric.api import env
 from fabric.api import local
-import os
+from fabric.api import put
+from fabric.api import run
 
 env.hosts = ['100.25.164.238', '54.89.108.249']
-env.user = 'ubuntu'
 
 
 def do_pack():
-    '''
-    Fabric script that generates a .tgz archive from the
-    contents of the web_static
-    '''
-
-    time_stamp = datetime.now().strftime("%Y%m%d%H%M%S") + ".tgz"
-    archive_path = 'versions/web_static_' + time_stamp
-
-    local('mkdir -p versions/')
-
-    full_filename = local('tar -cvzf {} web_static/'.format(archive_path))
-
-    if full_filename.succeeded:
-        return archive_path
-    return None
+    """Create a tar gzipped archive of the directory web_static."""
+    dt = datetime.utcnow()
+    file = "versions/web_static_{}{}{}{}{}{}.tgz".format(dt.year,
+                                                         dt.month,
+                                                         dt.day,
+                                                         dt.hour,
+                                                         dt.minute,
+                                                         dt.second)
+    if os.path.isdir("versions") is False:
+        if local("mkdir -p versions").failed is True:
+            return None
+    if local("tar -cvzf {} web_static".format(file)).failed is True:
+        return None
+    return file
 
 
 def do_deploy(archive_path):
+    """Distributes an archive to a web server.
+
+    Args:
+        archive_path (str): The path of the archive to distribute.
+    Returns:
+        If the file doesn't exist at archive_path or an error occurs - False.
+        Otherwise - True.
     """
-    Depploy to yoru webs server
-    """
-    if exists(archive_path) is False:
+    if os.path.isfile(archive_path) is False:
         return False
-    file_name = archive_path.split('/')[1]
-    file_path = '/data/web_static/releases'
-    try:
-        put(archive_path, '/tmp/')
-        run('mkdir -p {}{}'.format(file_path, file_name[:-4]))
-        run('tar -xzf /tmp/{} -C {}{}/'.format(file_name,
-                                               file_path, file_name[:-4]))
-        run('rm /tmp/{}'.format(file_name))
-        run('mv {}{}/web_static/* {}{}/'.format(file_path, file_name[:-4],
-                                                file_path, file_name[:-4]))
-        run('rm -rf {}{}/web_static'.format(file_path, file_name[:-4]))
-        run('rm -rf /data/web_static/current')
-        run('ln -s {}{}/ /data/web_static/current'.format(file_path,
-                                                          file_name[:-4]))
-        return True
-    except:
+    file = archive_path.split("/")[-1]
+    name = file.split(".")[0]
+
+    if put(archive_path, "/tmp/{}".format(file)).failed is True:
         return False
+    if run("rm -rf /data/web_static/releases/{}/".
+           format(name)).failed is True:
+        return False
+    if run("mkdir -p /data/web_static/releases/{}/".
+           format(name)).failed is True:
+        return False
+    if run("tar -xzf /tmp/{} -C /data/web_static/releases/{}/".
+           format(file, name)).failed is True:
+        return False
+    if run("rm /tmp/{}".format(file)).failed is True:
+        return False
+    if run("mv /data/web_static/releases/{}/web_static/* "
+           "/data/web_static/releases/{}/".format(name, name)).failed is True:
+        return False
+    if run("rm -rf /data/web_static/releases/{}/web_static".
+           format(name)).failed is True:
+        return False
+    if run("rm -rf /data/web_static/current").failed is True:
+        return False
+    if run("ln -s /data/web_static/releases/{}/ /data/web_static/current".
+           format(name)).failed is True:
+        return False
+    return True
 
 
 def deploy():
-    '''
-    Full deployment!
-    '''
-    do_pack_deploy = do_pack()
-    if not do_pack_deploy:
+    """Create and distribute an archive to a web server."""
+    file = do_pack()
+    if file is None:
         return False
-    deployed = do_deploy(do_pack_deploy)
-    return deployed
+    return do_deploy(file)
