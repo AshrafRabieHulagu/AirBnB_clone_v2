@@ -27,9 +27,9 @@ class BaseModel:
     if getenv("HBNB_TYPE_STORAGE") == "db":
         id = Column(String(60), primary_key=True)
         created_at = Column(DateTime, nullable=False,
-                            default=datetime.utcnow())
+                            default=datetime.now(timezone.utc))
         updated_at = Column(DateTime, nullable=False,
-                            default=datetime.utcnow())
+                            default=datetime.now(timezone.utc))
 
     def __init__(self, *args, **kwargs):
         """Initialize
@@ -69,7 +69,7 @@ class BaseModel:
         """Updates updated_at with current time when instance is changed
             calls save(self) method of storage
         """
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
         models.storage.new(self)
         models.storage.save()
 
